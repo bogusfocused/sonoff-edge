@@ -4,7 +4,7 @@ eWelink devices broadcast their status on mDNS locally and can be send commands 
 But there information like device key and device type that are required to create the devices. These information never change. Users run a python server locally on computer to seed this information to driver once. The server can stop after that forever.
 Everything for then runs on LAN.
 
-Subscribe to [channel](https://callaway.smartthings.com/channels/6363285c-333c-4aa5-ba2d-0790d1336005) and install the driver ewelink LAN Driver (0a4bfd5c-adb0-404f-8da4-acc5287372ef)
+Subscribe to [channel](https://bestow-regional.api.smartthings.com/invite/kVM5wOVZvQl5) and install the driver ewelink LAN Driver (0a4bfd5c-adb0-404f-8da4-acc5287372ef)
 
 Then open Smartthings app, ```Add device``` -> ```Search nearby```. You will see a device ```ewelink virtual hub``` Click ```Done```.
 
