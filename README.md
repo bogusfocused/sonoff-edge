@@ -8,6 +8,10 @@ Subscribe to [channel](https://bestow-regional.api.smartthings.com/invite/kVM5wO
 
 Then open Smartthings app, ```Add device``` -> ```Search nearby```. You will see a device ```ewelink virtual hub``` Click ```Done```.
 
+You will also see the ewelink devices in 30 seconds. But these devices maynot work as they require encryption key. There are 2 ways to update that.
+
+1. Feed from the server:
+
 Now we need to feed list of devices, their types and keys. We can download this from ewelink cloud. I have a helper program that can exactly do this.
 
 To run server download [hub.zip](hub.zip) and run
@@ -24,6 +28,10 @@ press ctrl+C to stop.
 Open Smartthings app, find the device ```ewelink virtual hub``` , select it and click 3 dots and select ```settings``` . In Url enter the your server URL from above (eg. http://10.0.0.41:8003/ ) and save. You should now see the devices added. 
 
 Stop the server and we do not need it anymore. All stuff from now happens on LAN.
+
+2. Set the device key
+
+From the above json data, extract the device key and set it in the settings.
 
 Go ahead and enjoy !!!
 
