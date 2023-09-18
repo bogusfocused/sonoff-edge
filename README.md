@@ -31,6 +31,10 @@ Stop the server and we do not need it anymore. All stuff from now happens on LAN
 
 2. Set the device key
 
+To use js script run
+```
+node [ewelink.js](hub/ewelink.js)  "<your username>" "<your password>" "<your region. one of us, cn,eu or as>"
+```
 From the above json data, extract the device key and set it in the settings.
 
 Go ahead and enjoy !!!
