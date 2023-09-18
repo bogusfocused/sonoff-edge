@@ -7,7 +7,6 @@ local base64 = require "st.base64"
 
 local command_handlers = require "command_handlers"
 local discovery = require "discovery"
-local constants = require "constants"
 
 local api = require "api"
 
@@ -15,6 +14,7 @@ local POLLING_TIMER = "update_timer"
 local DRIVER_NAME = "ewelink LAN Driver"
 local POLLING_COUNTER = "polling_counter"
 local DEVICE_KEY = "devicekey"
+local BRIDGE_DNI = "ewelink-vhub"
 
 local profiles = {
     [1] = "sonoff-light.v1",
@@ -34,8 +34,8 @@ end
 
 local function poll(driver, bridge, last_seqs, last_seen)
     log.info(driver.NAME, "Started polling")
-    log.info(utils.stringify_table(last_seqs))
-    log.info(utils.stringify_table(last_seen))
+    log.trace("last_seqs:", utils.stringify_table(last_seqs))
+    log.trace("last_seen:", utils.stringify_table(last_seen))
     local counter = bridge:get_field(POLLING_COUNTER) or 1
     local records = api.discover(last_seqs, last_seen, counter)
     for idx, record in ipairs(records) do
@@ -48,6 +48,19 @@ local function poll(driver, bridge, last_seqs, last_seen)
                 device:online()
                 update_device_from_params(device, params)
             end
+        else
+            local metadata = {
+                type = "LAN",
+                parent_device_id = bridge.id,
+                device_network_id = deviceid,
+                label = deviceid,
+                profile = record.txt.type,
+                manufacturer = 'ewelink',
+                model = record.txt.type,
+                vendor_provided_label = nil
+            }
+            log.info(utils.stringify_table(metadata))
+            driver:try_create_device(metadata)
         end
     end
     local offlineThreshold = bridge.preferences.offlineThreshold
@@ -81,36 +94,56 @@ local function create_child_devices(driver, bridge, bridge_netinfo)
         if not device_info then
             log.info("Not found", device.label)
             device:offline()
+            return
+        end
+        processed_devices[device_info.deviceid] = device.id
+        local profile = profiles[device_info.extra.uiid]
+        if profile ~= nil then
+            device:try_update_metadata({
+                profile = profile,
+                model = device_info.extra.uiid,
+                vendor_provided_label = device_info.name
+            })
         else
-            log.info("Found", device.label)
-            processed_devices[device_info.deviceid] = device.id
+            log.warn("Unknown uiid:", utils.stringify_table(device_info))
             device:try_update_metadata({
                 vendor_provided_label = device_info.name
             })
-            update_device_from_info(device, device_info.online, device_info.params)
         end
+        if device.label == device.device_network_id then device.label = device_info.name end
+        update_device_from_info(device, device_info.online, device_info.params)
     end
     for deviceid, device_info in pairs(bridge_netinfo) do
         if not processed_devices[deviceid] then
-            local metadata = {
-                type = "LAN",
-                parent_device_id = bridge.id,
-                device_network_id = device_info.deviceid,
-                label = device_info.name,
-                profile = profiles[device_info.extra.uiid],
-                manufacturer = device_info.extra.manufacturer,
-                model = device_info.extra.model,
-                vendor_provided_label = nil
-            }
-            if device_info.showBrand then metadata.manufacturer = device_info.brandName end
-            log.info(utils.stringify_table(metadata))
-            driver.datastore.dni_to_devicekey[device_info.deviceid] = device_info.devicekey
-            driver:try_create_device(metadata)
+            local profile = profiles[device_info.extra.uiid]
+            if profile == nil then
+                log.warn("Unknown uiid:", utils.stringify_table(device_info))
+            else
+                local metadata = {
+                    type = "LAN",
+                    parent_device_id = bridge.id,
+                    device_network_id = device_info.deviceid,
+                    label = device_info.name,
+                    profile = profile,
+                    manufacturer = device_info.extra.manufacturer .. " (" .. device_info.extra.model .. ")",
+                    model = device_info.extra.uiid
+                }
+                if device_info.showBrand then
+                    metadata.manufacturer = device_info.brandName .. " (" .. device_info.extra.model .. ")"
+                end
+                log.info(utils.stringify_table(metadata))
+                driver.datastore.dni_to_devicekey[device_info.deviceid] = device_info.devicekey
+                driver:try_create_device(metadata)
+            end
         end
     end
 
 end
 local function setup_polling_task(driver, bridge)
+    if bridge == nil then
+        local bridge_id = driver.datastore.dni_to_id[BRIDGE_DNI]
+        bridge = driver:get_device_info(bridge_id)
+    end
     local interval = bridge.preferences.pollingInterval
     local timer = bridge:get_field(POLLING_TIMER)
     if timer ~= nil then bridge.thread:cancel_timer(timer) end
@@ -120,6 +153,9 @@ local function setup_polling_task(driver, bridge)
         poll(driver, bridge, last_seqs, last_seen)
     end)
     bridge:set_field(POLLING_TIMER, timer)
+    bridge.thread:call_with_delay(0, function(d)
+        poll(driver, bridge, last_seqs, last_seen)
+    end)
 end
 local function download_bridge_netinfo(driver, device)
     if device.preferences.url == "" then
@@ -141,13 +177,25 @@ local function device_added(driver, device, event, args)
         persist = true
     })
     local device_info = driver.datastore.bridge_netinfo[device.device_network_id]
-    update_device_from_info(device, device_info.online, device_info.params)
+    if device_info ~= nil then update_device_from_info(device, device_info.online, device_info.params) end
 end
 
 local function device_init(driver, device, event, args)
     log.info(device:pretty_print(), event)
 end
-
+local function device_infoChanged(driver, device, event, args)
+    log.info(device:pretty_print(), event)
+    if args.old_st_store.preferences.devicekey ~= device.preferences.devicekey then
+        device:set_field(DEVICE_KEY, device.preferences.devicekey, {
+            persist = true
+        })
+        setup_polling_task(driver)
+    end
+end
+local function device_removed(driver, device, event, args)
+    log.info("Removing  device", device.device_network_id)
+    driver.datastore.dni_to_id[device.device_network_id] = nil
+end
 local function bridge_refresh(driver, device, command)
     log.debug(device:pretty_print(), "calling bridge refresh")
     driver:call_with_delay(1, function(d)
@@ -169,6 +217,7 @@ end
 local function bridge_added(driver, device, event, args)
     log.info(device:pretty_print(), event)
     driver.datastore.bridge_netinfo = {}
+    driver.datastore.dni_to_id[device.device_network_id] = device.id
 end
 
 local function bridge_init(driver, device, event, args)
@@ -185,7 +234,8 @@ local driver = Driver(DRIVER_NAME, {
     discovery = discovery.handle_discovery,
     lifecycle_handlers = {
         added = device_added,
-        init = device_init
+        init = device_init,
+        removed = device_removed
     },
     capability_handlers = {
         [capabilities.switch.ID] = {
@@ -196,10 +246,11 @@ local driver = Driver(DRIVER_NAME, {
             [capabilities.switchLevel.commands.setLevel.NAME] = command_handlers.switchLevel_setLevel
         }
     },
+
     sub_drivers = {{
         NAME = "ewelink bridge",
         can_handle = function(opts, driver, device, ...)
-            return device.device_network_id == constants.bridge.id
+            return device.device_network_id == BRIDGE_DNI
         end,
         lifecycle_handlers = {
             added = bridge_added,
@@ -210,6 +261,24 @@ local driver = Driver(DRIVER_NAME, {
         capability_handlers = {
             [capabilities.refresh.ID] = {
                 [capabilities.refresh.commands.refresh.NAME] = bridge_refresh
+            }
+        }
+    }, {
+        NAME = "generic",
+        can_handle = function(opts, driver, device, ...)
+            return device.model == "plug" or device.model == "light"
+        end,
+        lifecycle_handlers = {
+            infoChanged = device_infoChanged
+        }
+    }, {
+        NAME = "UIID 44",
+        can_handle = function(opts, driver, device, ...)
+            return device.model == "44"
+        end,
+        capability_handlers = {
+            [capabilities.switchLevel.ID] = {
+                [capabilities.switchLevel.commands.setLevel.NAME] = command_handlers.UIID44_switchLevel_setLevel
             }
         }
     }},

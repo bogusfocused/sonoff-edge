@@ -1,5 +1,5 @@
 # sonoff-edge-profile
-name: uiid44-light.v1
+name: light
 components:
 - id: main
   capabilities:
@@ -9,7 +9,12 @@ components:
     version: 1
   categories:
   - name: Light
-metadata:
-  uiid: "44"
-
+preferences:
+  - name: devicekey
+    title: Device key
+    preferenceType: string
+    definition:
+      stringType: text
+      default: ''
+  
 
