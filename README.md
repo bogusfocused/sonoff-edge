@@ -14,7 +14,7 @@ You will also see the ewelink devices in 30 seconds. But these devices maynot wo
 
 Now we need to feed list of devices, their types and keys. We can download this from ewelink cloud. I have a helper program that can exactly do this.
 
-To run server download [hub.zip](hub.zip) and run
+To run server download [hub.zip](https://github.com/bogusfocused/sonoff-edge/blob/main/hub.zip) and run
 ```
 python hub.zip -u <username> -p <password> --region <region> --port <port>
 ```
@@ -31,7 +31,7 @@ Stop the server and we do not need it anymore. All stuff from now happens on LAN
 
 2. Set the device key
 
-To use js script [ewelink.js](hub/ewelink.js) run
+To use js script [ewelink.js](https://github.com/bogusfocused/sonoff-edge/blob/main/hub/ewelink.js) run
 ```
 node ewelink.js  "<your username>" "<your password>" "<your region. one of us, cn,eu or as>"
 ```
