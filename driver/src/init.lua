@@ -17,8 +17,8 @@ local DEVICE_KEY = "devicekey"
 local BRIDGE_DNI = "ewelink-vhub"
 
 local profiles = {
-    [1] = "sonoff-light.v1",
-    [44] = "uiid44-light.v1"
+    [1] = "uiid1",
+    [44] = "uiid44"
 }
 local function update_device_from_params(device, params)
     if not params then return end
@@ -57,7 +57,7 @@ local function poll(driver, bridge, last_seqs, last_seen)
                 profile = record.txt.type,
                 manufacturer = 'ewelink',
                 model = record.txt.type,
-                vendor_provided_label = nil
+                vendor_provided_label = deviceid
             }
             log.info(utils.stringify_table(metadata))
             driver:try_create_device(metadata)
@@ -94,27 +94,28 @@ local function create_child_devices(driver, bridge, bridge_netinfo)
         if not device_info then
             log.info("Not found", device.label)
             device:offline()
-            return
-        end
-        processed_devices[device_info.deviceid] = device.id
-        local profile = profiles[device_info.extra.uiid]
-        if profile ~= nil then
-            device:try_update_metadata({
-                profile = profile,
-                model = device_info.extra.uiid,
-                vendor_provided_label = device_info.name
-            })
         else
-            log.warn("Unknown uiid:", utils.stringify_table(device_info))
-            device:try_update_metadata({
-                vendor_provided_label = device_info.name
-            })
+            log.info("found", device.label)
+            processed_devices[device_info.deviceid] = device.id
+            local profile = profiles[device_info.extra.uiid]
+            if profile ~= nil then
+                device:try_update_metadata({
+                    profile = profile,
+                    model = tostring(device_info.extra.uiid),
+                    vendor_provided_label = device_info.name
+                })
+            else
+                log.warn("Unknown uiid:", utils.stringify_table(device_info))
+                device:try_update_metadata({
+                    vendor_provided_label = device_info.name
+                })
+            end
+            update_device_from_info(device, device_info.online, device_info.params)
         end
-        if device.label == device.device_network_id then device.label = device_info.name end
-        update_device_from_info(device, device_info.online, device_info.params)
     end
     for deviceid, device_info in pairs(bridge_netinfo) do
         if not processed_devices[deviceid] then
+            log.info("Creating", device_info.name)
             local profile = profiles[device_info.extra.uiid]
             if profile == nil then
                 log.warn("Unknown uiid:", utils.stringify_table(device_info))
@@ -126,7 +127,7 @@ local function create_child_devices(driver, bridge, bridge_netinfo)
                     label = device_info.name,
                     profile = profile,
                     manufacturer = device_info.extra.manufacturer .. " (" .. device_info.extra.model .. ")",
-                    model = device_info.extra.uiid
+                    model = tostring(device_info.extra.uiid)
                 }
                 if device_info.showBrand then
                     metadata.manufacturer = device_info.brandName .. " (" .. device_info.extra.model .. ")"
@@ -200,6 +201,7 @@ local function bridge_refresh(driver, device, command)
     log.debug(device:pretty_print(), "calling bridge refresh")
     driver:call_with_delay(1, function(d)
         download_bridge_netinfo(driver, device)
+        setup_polling_task(driver, device)
     end, DRIVER_NAME .. " Download device info")
 end
 
@@ -283,7 +285,12 @@ local driver = Driver(DRIVER_NAME, {
         }
     }},
     device_by_id = function(self, deviceid)
-        return self:get_device_info(self.datastore.dni_to_id[deviceid])
+        local uuid = self.datastore.dni_to_id[deviceid]
+        if uuid == nil then
+            return nil
+        else
+            return self:get_device_info(uuid)
+        end
     end
 })
 

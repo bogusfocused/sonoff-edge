@@ -1,15 +1,11 @@
 # sonoff-edge-profile
-name: uiid44-light.v1
+name: uiid1
 components:
 - id: main
   capabilities:
   - id: switch
     version: 1
-  - id: switchLevel
-    version: 1
   categories:
-  - name: Light
-metadata:
-  uiid: "44"
+  - name: SmartPlug
 
 

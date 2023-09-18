@@ -1,9 +1,11 @@
 # sonoff-edge-profile
-name: sonoff-light.v1
+name: uiid44
 components:
 - id: main
   capabilities:
   - id: switch
+    version: 1
+  - id: switchLevel
     version: 1
   categories:
   - name: Light
