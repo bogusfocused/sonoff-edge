@@ -19,13 +19,13 @@ async function encode(key, payload) {
     );
     const sig = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
 
-    // to lowercase hexits
-    [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
-
     // to base64
     return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 async function login(username, password, region) {
+    console.assert(username.length > 0, "username must be present")
+    console.assert(password.length > 0, "password must be present")
+    console.assert(Object.keys(API).includes(region), "region must be one of %s but was %s", Object.keys(API).join(), region)
     let app = 1;
     let payload = {
         "password": password,
@@ -52,7 +52,7 @@ async function login(username, password, region) {
     )
     let json = await response.json();
     console.log(json);
-
+    if (json.error != 0) return;
     let at = json.data.at
     response = await fetch(
         API[region] + "/v2/device/thing", {
@@ -61,12 +61,9 @@ async function login(username, password, region) {
     }
     )
     json = await response.json();
-    console.log(json);
+    console.log(JSON.stringify(json));
 }
 
 var arguments = process.argv;
-if (arguments.length != 5) {
-    console.log("wrong number of arguments.")
-    process.exit(1)
-}
+console.assert(arguments.length == 5, "wrong number of arguments.")
 login(arguments[2], arguments[3], arguments[4]).then(x => x)
